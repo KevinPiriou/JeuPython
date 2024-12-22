@@ -1,4 +1,3 @@
-# dungeon_generator.py
 import random
 import copy
 
@@ -40,7 +39,10 @@ class DungeonGenerator:
             # 6) Mettre les bords extérieurs en murs
             self.set_outer_walls()
 
-            # 7) Mémoriser la meilleure tentative
+            # 7) Ajouter une salle secrète si nécessaire
+            self.add_secret_room(rooms)
+
+            # 8) Mémoriser la meilleure tentative
             best_map_data = copy.deepcopy(self.map_data)
             best_rooms = rooms
 
@@ -50,15 +52,12 @@ class DungeonGenerator:
         # Après les tentatives, on garde la meilleure version
         self.map_data = best_map_data
 
-        # 8) Marquer la dernière salle comme secrète
-        if best_rooms:
-            self.mark_secret_room(best_rooms[-1])
-
         # 9) Peupler la carte (ennemis / items)
         self.populate(best_rooms, spawn_sas)
 
         return self.map_data
 
+    # Méthode pour connecter le sas à la première salle générée
     def connect_spawn_to_first_room(self, spawn_sas, rooms):
         """
         Connecte le sas de spawn à la première salle générée.
@@ -188,6 +187,22 @@ class DungeonGenerator:
         for y in range(self.height):
             self.map_data[y][0]["is_wall"] = True
             self.map_data[y][self.width - 1]["is_wall"] = True
+
+    def add_secret_room(self, rooms):
+        """
+        Ajoute une salle secrète de taille minimale 2x3 et un seul couloir connecté.
+        """
+        secret_room_width = random.randint(2, 3)  # Largeur minimale 2x3
+        secret_room_height = 3  # Hauteur minimale de 3
+        secret_room_x = random.randint(1, self.width - secret_room_width - 1)
+        secret_room_y = random.randint(1, self.height - secret_room_height - 1)
+
+        # Créer la salle secrète (2x3 minimum)
+        self.mark_secret_room((secret_room_x, secret_room_y, secret_room_width, secret_room_height))
+
+        # Relier la salle secrète à une autre pièce (première pièce disponible)
+        self.create_corridor(secret_room_x + secret_room_width // 2, secret_room_y + secret_room_height // 2,
+                              rooms[0][0] + rooms[0][2] // 2, rooms[0][1] + rooms[0][3] // 2)
 
     def mark_secret_room(self, room):
         """
