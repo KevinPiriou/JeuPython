@@ -3,8 +3,7 @@ import pygame_gui
 import sys
 import math
 import time
-
-from settings import *
+from settings import *  # Importer les couleurs définies dans settings.py
 
 from dungeon_generator import DungeonGenerator, find_free_tile
 from entities import Player, Enemy
@@ -59,7 +58,7 @@ def main():
     offset_y = (SCREEN_HEIGHT - total_map_height_pixels) // 3 - MARGIN_Y
     offset_y += HUD_HEIGHT  # Décalage sous le HUD
 
-    # Forcer le spawn du joueur dans (1,1)
+    # Forcer le spawn du joueur dans (1, 1)
     player_tile = (1, 1)
     player_px = player_tile[0] * TILE_SIZE + offset_x + TILE_SIZE // 2
     player_py = player_tile[1] * TILE_SIZE + offset_y + TILE_SIZE // 2
@@ -95,6 +94,9 @@ def main():
     running = True
     while running:
         dt = clock.tick(60) / 1000.0
+
+        # Récupérer les FPS et Tickrate
+        fps = clock.get_fps()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -187,7 +189,7 @@ def main():
             all_enemies_dead = all(not e.is_alive() for e in enemies)
             all_items_collected = (len(items_on_floor) == 0)
 
-        if all_enemies_dead or all_items_collected:
+        if all_enemies_dead and all_items_collected:
             (door_x, door_y) = dungeon.secret_door
             dungeon.map_data[door_y][door_x]["is_wall"] = False
             dungeon.map_data[door_y][door_x]["is_door"] = False
@@ -200,7 +202,7 @@ def main():
         inv_label.set_text(f"Inventaire : {len(inventory.items)}")
 
         # ---- Rendu ----
-        screen.fill((0, 0, 0))  # Réinitialisation de l'écran
+        screen.fill(BLACK)  # Réinitialisation de l'écran
 
         # Dessin du donjon
         for row_idx in range(map_height):
@@ -209,8 +211,7 @@ def main():
                 draw_x = col_idx * TILE_SIZE + offset_x
                 draw_y = row_idx * TILE_SIZE + offset_y
 
-                
-                color = MUR_COLOR if cell["is_wall"] else TILE_COLOR
+                color = MUR_COLOR if cell["is_wall"] else TILE_COLOR  # Utilisation des couleurs définies dans settings.py
                 rect = pygame.Rect(draw_x, draw_y, TILE_SIZE, TILE_SIZE)
                 pygame.draw.rect(screen, color, rect)
 
@@ -230,6 +231,12 @@ def main():
         for proj in projectiles:
             px, py = proj.body.position
             pygame.draw.circle(screen, PROJECTILE_COLOR, (int(px), int(py)), 4)
+
+        # Affichage du footer avec les informations
+        footer_font = pygame.font.SysFont("Arial", 16)
+        footer_text = f"FPS: {fps:.2f} | Tickrate: {fps:.2f} | Ennemies: {len(enemies)} | Items: {len(items_on_floor)} | Pièces: {NUM_ROOMS} | Tuiles: {map_width * map_height}"
+        footer_surface = footer_font.render(footer_text, True, WHITE)
+        screen.blit(footer_surface, (10, SCREEN_HEIGHT - 30))  # Position du footer
 
         # HUD
         manager.draw_ui(screen)
