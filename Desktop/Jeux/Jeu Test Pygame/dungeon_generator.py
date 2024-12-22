@@ -34,10 +34,13 @@ class DungeonGenerator:
             # 4) Connecter les salles
             self.connect_rooms(rooms)
 
-            # 5) Mettre les bords extérieurs en murs
+            # 5) Relier le sas à la première salle générée
+            self.connect_spawn_to_first_room(spawn_sas, rooms)
+
+            # 6) Mettre les bords extérieurs en murs
             self.set_outer_walls()
 
-            # 6) Mémoriser la meilleure tentative
+            # 7) Mémoriser la meilleure tentative
             best_map_data = copy.deepcopy(self.map_data)
             best_rooms = rooms
 
@@ -47,14 +50,49 @@ class DungeonGenerator:
         # Après les tentatives, on garde la meilleure version
         self.map_data = best_map_data
 
-        # 7) Marquer la dernière salle comme secrète
+        # 8) Marquer la dernière salle comme secrète
         if best_rooms:
             self.mark_secret_room(best_rooms[-1])
 
-        # 8) Peupler la carte (ennemis / items)
+        # 9) Peupler la carte (ennemis / items)
         self.populate(best_rooms, spawn_sas)
 
         return self.map_data
+
+    def connect_spawn_to_first_room(self, spawn_sas, rooms):
+        """
+        Connecte le sas de spawn à la première salle générée.
+        """
+        # Récupérer le centre du sas (ici le centre est (1,1) ou (2,2))
+        spawn_x, spawn_y = spawn_sas[0]
+
+        # Récupérer le centre de la première salle générée
+        first_room = rooms[0]  # Prendre la première salle générée
+        room_x = first_room[0] + first_room[2] // 2  # Centre de la salle
+        room_y = first_room[1] + first_room[3] // 2  # Centre de la salle
+
+        # Créer un couloir entre le sas et la première salle
+        self.create_corridor(spawn_x, spawn_y, room_x, room_y)
+
+    def create_corridor(self, start_x, start_y, end_x, end_y):
+        """
+        Crée un couloir entre deux points.
+        """
+        # D'abord, un couloir horizontal
+        if start_x < end_x:
+            for x in range(start_x, end_x + 1):
+                self.map_data[start_y][x]["is_wall"] = False
+        else:
+            for x in range(end_x, start_x + 1):
+                self.map_data[start_y][x]["is_wall"] = False
+
+        # Ensuite, un couloir vertical
+        if start_y < end_y:
+            for y in range(start_y, end_y + 1):
+                self.map_data[y][end_x]["is_wall"] = False
+        else:
+            for y in range(end_y, start_y + 1):
+                self.map_data[y][end_x]["is_wall"] = False
 
     def init_all_walls(self):
         """

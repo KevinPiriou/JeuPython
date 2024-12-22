@@ -1,6 +1,6 @@
 
 # settings.py
-
+import random
 # Définition des couleurs sous forme de tuples RGB
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -35,7 +35,7 @@ MARGIN_Y = 5
 HUD_HEIGHT = 92
 
 # Paramètres de génération de salles
-NUM_ROOMS = 6
+NUM_ROOMS = random.randint(4, 8)
 MIN_ROOM_SIZE = 3
 MAX_ROOM_SIZE = 8
 
