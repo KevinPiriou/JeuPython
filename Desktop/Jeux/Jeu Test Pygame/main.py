@@ -1,33 +1,35 @@
 import pygame
+import pymunk
 import pygame_gui
 import sys
 import math
 import time
-from settings import *  # Importer les couleurs définies dans settings.py
-
+from settings import *  # Importation des constantes et couleurs
 from dungeon_generator import *
 from entities import Player, Enemy
 from inventory import Inventory, Item
 from projectiles import (
     setup_pymunk_space, add_projectile,
-    register_collision_handlers,
-    PROJECTILE_COLLISION_TYPE, ENEMY_COLLISION_TYPE
+    register_collision_handlers, add_wall,
+    PROJECTILE_COLLISION_TYPE, ENEMY_COLLISION_TYPE, WALL_COLLISION_TYPE
 )
 
+
 def main():
+    # Initialisation Pygame
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
     clock = pygame.time.Clock()
-    pygame.display.set_caption("Roguelike + Pymunk + HUD")
+    pygame.display.set_caption("Roguelike + Donjon Varié")
 
+    # Initialisation GUI
     manager = pygame_gui.UIManager((SCREEN_WIDTH, SCREEN_HEIGHT))
 
-    # Panel HUD
+    # HUD
     hud_panel = pygame_gui.elements.UIPanel(
         relative_rect=pygame.Rect(0, 0, SCREEN_WIDTH, HUD_HEIGHT),
         manager=manager
     )
-
     hp_label = pygame_gui.elements.UITextBox(
         html_text="HP : ???",
         relative_rect=pygame.Rect(10, 10, 100, 24),
@@ -41,32 +43,35 @@ def main():
         container=hud_panel
     )
 
+    # Génération du donjon
     map_width = 35
     map_height = 18
     dungeon = DungeonGenerator(map_width, map_height)
     map_data = dungeon.generate_map(NUM_ROOMS, MIN_ROOM_SIZE, MAX_ROOM_SIZE)
-    if map_data is None:
+    if not map_data:
         print("Erreur : Donjon non généré.")
         return
-    else:
-        print("Donjon généré avec succès.")
+    print("Donjon généré avec succès.")
 
-    # Calcul offset
+    # Calcul des offsets
     total_map_width_pixels = map_width * TILE_SIZE
     total_map_height_pixels = map_height * TILE_SIZE
     offset_x = (SCREEN_WIDTH - total_map_width_pixels) // 2 - MARGIN_X
     offset_y = (SCREEN_HEIGHT - total_map_height_pixels) // 3 - MARGIN_Y
     offset_y += HUD_HEIGHT  # Décalage sous le HUD
 
-    # Forcer le spawn du joueur dans (1, 1)
+    # Initialisation du joueur
     player_tile = (1, 1)
     player_px = player_tile[0] * TILE_SIZE + offset_x + TILE_SIZE // 2
     player_py = player_tile[1] * TILE_SIZE + offset_y + TILE_SIZE // 2
     player = Player(player_px, player_py, 100)
-
     inventory = Inventory()
 
-    # Création des ennemis et items
+    # Initialisation physique
+    space = setup_pymunk_space()
+    projectiles = []
+
+    # Création des ennemis et murs
     enemies = []
     items_on_floor = []
     for y in range(map_height):
@@ -75,45 +80,55 @@ def main():
             if cell["has_enemy"]:
                 ex = x * TILE_SIZE + offset_x + TILE_SIZE // 2
                 ey = y * TILE_SIZE + offset_y + TILE_SIZE // 2
-                if not cell["is_wall"]:
-                    enemies.append(Enemy(ex, ey, 50))
+                enemy = Enemy(ex, ey, 50)
+
+                # Ajouter un corps physique pour l'ennemi
+                body = pymunk.Body(body_type=pymunk.Body.STATIC)
+                body.position = (ex, ey)
+                shape = pymunk.Circle(body, 10)
+                shape.collision_type = ENEMY_COLLISION_TYPE
+                shape.user_data = enemy  # Associer l'ennemi à la forme
+                space.add(body, shape)
+
+                enemy.body = body
+                enemy.shape = shape
+                enemies.append(enemy)
+
             if cell["has_item"]:
                 ix = x * TILE_SIZE + offset_x + TILE_SIZE // 2
                 iy = y * TILE_SIZE + offset_y + TILE_SIZE // 2
-                if not cell["is_wall"]:
-                    potion = Item("Potion", "heal", 20)
-                    items_on_floor.append({"x": ix, "y": iy, "item": potion})
+                items_on_floor.append({"x": ix, "y": iy, "item": Item("Potion", "heal", 20)})
 
-    # ---- Pymunk ----
-    import pymunk
-    space = setup_pymunk_space()
+            if cell["is_wall"]:
+                wx = x * TILE_SIZE + offset_x
+                wy = y * TILE_SIZE + offset_y
+                add_wall(space, wx + TILE_SIZE // 2, wy + TILE_SIZE // 2, TILE_SIZE, TILE_SIZE)
 
-    projectiles = []
-    last_shot_time = 0
+    # Enregistrer les gestionnaires de collision
+    register_collision_handlers(space, enemies)
 
     running = True
     while running:
-        dt = clock.tick(60) / 1000.0
-
-        # Récupérer les FPS et Tickrate
+        dt = clock.tick(120) / 1000.0
         fps = clock.get_fps()
 
+        # Gestion des événements
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-
+    
             manager.process_events(event)
 
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
-                    # Attaquer un ennemi en melee (démo)
+                    # Attaque de mêlée
                     for e in enemies:
                         if e.is_alive():
                             player.attack(e)
-                if event.key == pygame.K_1:
+                elif event.key == pygame.K_1:
                     inventory.use_item(0, player)
 
-        # ---- Déplacement Joueur ----
+        # Déplacement joueur
         keys = pygame.key.get_pressed()
         dx, dy = 0, 0
         if keys[pygame.K_LEFT]:
@@ -128,6 +143,7 @@ def main():
         old_x, old_y = player.x, player.y
         player.move(dx, dy)
 
+        # Vérification des collisions avec murs
         tile_x = int((player.x - offset_x) // TILE_SIZE)
         tile_y = int((player.y - offset_y) // TILE_SIZE)
         if 0 <= tile_x < map_width and 0 <= tile_y < map_height:
@@ -136,113 +152,94 @@ def main():
         else:
             player.x, player.y = old_x, old_y
 
-        # ---- Update Ennemis ----
+        # Mise à jour des ennemis
         for e in enemies:
             if e.is_alive():
                 e.update(player, map_data, offset_x, offset_y, TILE_SIZE)
 
-        # ---- Ramassage Items ----
+        # Ramassage d'items
         for it_dict in items_on_floor[:]:
             dist = math.hypot(player.x - it_dict["x"], player.y - it_dict["y"])
             if dist < 20:
                 inventory.add_item(it_dict["item"])
                 items_on_floor.remove(it_dict)
 
-        # ---- Auto-Lock + Tir Pymunk ----
+        # Gestion des projectiles avec verrouillage
         locked_enemy = None
         min_dist = float('inf')
         for e in enemies:
             if e.is_alive():
-                dist = math.hypot(e.x - player.x, e.y - player.y)
+                ex, ey = e.body.position  # Utiliser les coordonnées physiques
+                dist = math.hypot(player.x - ex, player.y - ey)
                 if dist < LOCK_RANGE and dist < min_dist:
                     min_dist = dist
                     locked_enemy = e
 
-        if locked_enemy is not None:
+        if locked_enemy:
             current_time = pygame.time.get_ticks()
             if current_time - player.last_shot_time > SHOOT_COOLDOWN_MS:
-                _proj = add_projectile(space, player.x, player.y, locked_enemy.x, locked_enemy.y)
-                projectiles.append(_proj)
+                target_x, target_y = locked_enemy.body.position
+                proj = add_projectile(space, player.x, player.y, target_x, target_y)
+                projectiles.append(proj)
                 player.last_shot_time = current_time
 
-        # ---- MàJ Pymunk (projectiles) ----
+        # Mise à jour de la physique
         space.step(dt)
-
         for proj in projectiles[:]:
             px, py = proj.body.position
-            if px < offset_x or px > (offset_x + map_width * TILE_SIZE) \
-               or py < offset_y or py > (offset_y + map_height * TILE_SIZE):
+
+            # Vérifiez si le projectile est hors de l'écran
+            if not (offset_x <= px <= offset_x + map_width * TILE_SIZE) or not (offset_y <= py <= offset_y + map_height * TILE_SIZE):
                 space.remove(proj.body, proj.shape)
                 projectiles.remove(proj)
-                continue
 
-            for e in enemies:
-                if e.is_alive():
-                    dist = math.hypot(e.x - px, e.y - py)
-                    if dist < 10:
-                        e.hp -= 20
-                        space.remove(proj.body, proj.shape)
-                        projectiles.remove(proj)
-                        break
+            # Vérifiez si le projectile a été supprimé par collision
+            if proj.body not in space.bodies:
+                projectiles.remove(proj)
 
-        # Vérification si tous les ennemis sont morts pour ouvrir la porte secrète
+        # Déverrouillage de la salle secrète
         all_enemies_dead = all(not e.is_alive() for e in enemies)
-        all_items_collected = (len(items_on_floor) == 0)
-
+        all_items_collected = not items_on_floor
         if all_enemies_dead and all_items_collected:
-            (door_x, door_y) = dungeon.secret_door
-            dungeon.map_data[door_y][door_x]["is_wall"] = False
-            dungeon.map_data[door_y][door_x]["is_door"] = False
-            print(f"Portes de la salle secrète déverrouillées en ({door_x}, {door_y}).")
+            door_x, door_y = dungeon.secret_door
+            map_data[door_y][door_x]["is_wall"] = False
+            print(f"Salle secrète déverrouillée à ({door_x}, {door_y}).")
 
-        # ---- MàJ GUI ----
+        # Mise à jour GUI
         manager.update(dt)
-
         hp_label.set_text(f"HP : {player.hp}")
         inv_label.set_text(f"Inventaire : {len(inventory.items)}")
 
-        # ---- Rendu ----
-        screen.fill(BLACK)  # Réinitialisation de l'écran
-
-        # Dessin du donjon
+        # Rendu
+        screen.fill(BLACK)
         for row_idx in range(map_height):
             for col_idx in range(map_width):
                 cell = map_data[row_idx][col_idx]
                 draw_x = col_idx * TILE_SIZE + offset_x
                 draw_y = row_idx * TILE_SIZE + offset_y
-
-                color = MUR_COLOR if cell["is_wall"] else TILE_COLOR  # Utilisation des couleurs définies dans settings.py
+                color = MUR_COLOR if cell["is_wall"] else TILE_COLOR
                 rect = pygame.Rect(draw_x, draw_y, TILE_SIZE, TILE_SIZE)
                 pygame.draw.rect(screen, color, rect)
 
-        # Dessin du joueur
         pygame.draw.circle(screen, PLAYER_COLOR, (int(player.x), int(player.y)), 10)
-
-        # Dessin des ennemis
         for e in enemies:
             if e.is_alive():
-                pygame.draw.circle(screen, ENEMY_COLOR, (int(e.x), int(e.y)), 8)
-
-        # Dessin des items
+                pygame.draw.circle(screen, ENEMY_COLOR, (int(e.body.position.x), int(e.body.position.y)), 8)
         for it_dict in items_on_floor:
             pygame.draw.circle(screen, ITEM_COLOR, (int(it_dict["x"]), int(it_dict["y"])), 5)
-
-        # Dessin des projectiles
         for proj in projectiles:
             px, py = proj.body.position
             pygame.draw.circle(screen, PROJECTILE_COLOR, (int(px), int(py)), 4)
 
-        # Affichage du footer avec les informations
         footer_font = pygame.font.SysFont("Arial", 16)
         footer_text = f"FPS: {fps:.2f} | Ennemies: {len(enemies)} | Items: {len(items_on_floor)} | Pièces: {NUM_ROOMS} | Tuiles: {map_width * map_height}"
         footer_surface = footer_font.render(footer_text, True, WHITE)
-        screen.blit(footer_surface, (10, SCREEN_HEIGHT - 30))  # Position du footer
-
-        # HUD
+        screen.blit(footer_surface, (10, SCREEN_HEIGHT - 30))
         manager.draw_ui(screen)
         pygame.display.flip()
 
     pygame.quit()
+
 
 if __name__ == "__main__":
     main()

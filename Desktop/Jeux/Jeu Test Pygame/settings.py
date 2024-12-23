@@ -21,6 +21,15 @@ PLAYER_COLOR = BLUE    # Couleur du joueur
 ENEMY_COLOR = RED      # Couleur des ennemis
 ITEM_COLOR = YELLOW    # Couleur des items
 PROJECTILE_COLOR = MAGENTA  # Couleur des projectiles
+ROOM_COLORS = {
+    "None": GRAY,       # Par défaut
+    "Normal": GRAY,
+    "Spawn": CYAN,
+    "Boss": RED,
+    "Treasure": YELLOW,
+    "Trap": ORANGE,
+    "Secret": PURPLE,
+}
 
 SCREEN_WIDTH = 1920
 SCREEN_HEIGHT = 1080

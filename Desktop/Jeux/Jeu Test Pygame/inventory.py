@@ -24,3 +24,5 @@ class Inventory:
         if 0 <= index < len(self.items):
             self.items[index].use(player)
             del self.items[index]
+        else:
+            raise IndexError("Index hors limites de l'inventaire.")
