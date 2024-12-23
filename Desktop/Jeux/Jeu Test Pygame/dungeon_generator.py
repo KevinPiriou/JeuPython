@@ -11,7 +11,7 @@ class DungeonGenerator:
     def generate_map(self, num_rooms, min_room_size, max_room_size):
         """
         Génère un donjon sans objectif de couverture.
-        Inclut un sas de spawn et une salle secrète.
+        Inclut un sas de spawn et une salle secrète avec une probabilité.
         """
         max_attempts = 10000
 
@@ -39,7 +39,7 @@ class DungeonGenerator:
             # 6) Mettre les bords extérieurs en murs
             self.set_outer_walls()
 
-            # 7) Ajouter une salle secrète si nécessaire
+            # 7) Ajouter une salle secrète avec probabilité
             self.add_secret_room(rooms)
 
             # 8) Mémoriser la meilleure tentative
@@ -57,12 +57,57 @@ class DungeonGenerator:
 
         return self.map_data
 
-    # Méthode pour connecter le sas à la première salle générée
+    def add_secret_room(self, rooms):
+        """
+        Ajoute une salle secrète avec une probabilité de 0 à 30%.
+        La salle secrète est 2x2 et est reliée par un seul couloir.
+        """
+        # Probabilité d'ajouter une salle secrète entre 0% et 30%
+        secret_room_probability = random.random()  # Génère un nombre entre 0 et 1
+        print(f"Probabilité de salle secrète : {secret_room_probability:.2f}")
+        
+        if secret_room_probability <= 0.3:  # Si la probabilité est inférieure ou égale à 30%
+            print("Salle secrète générée!")
+
+            # Définir la taille de la salle secrète
+            secret_room_width = 2  # Largeur de 2
+            secret_room_height = 2  # Hauteur de 2
+
+            # Calculer la position aléatoire pour la salle secrète
+            secret_room_x = random.randint(1, self.width - secret_room_width - 1)
+            secret_room_y = random.randint(1, self.height - secret_room_height - 1)
+
+            # Créer la salle secrète (2x2 minimum)
+            self.mark_secret_room((secret_room_x, secret_room_y, secret_room_width, secret_room_height))
+
+            # Relier la salle secrète à une autre pièce (ici, la dernière salle générée)
+            last_room = rooms[-1]  # On connecte la salle secrète à la dernière pièce générée
+            self.create_corridor(secret_room_x + secret_room_width // 2, secret_room_y + secret_room_height // 2,
+                                  last_room[0] + last_room[2] // 2, last_room[1] + last_room[3] // 2)
+        else:
+            print("Aucune salle secrète générée cette fois.")
+
+    def mark_secret_room(self, room):
+        """
+        Marque une salle comme secrète et ferme sa porte.
+        """
+        (rx, ry, rw, rh) = room
+        for y in range(ry, ry + rh):
+            for x in range(rx, rx + rw):
+                self.map_data[y][x]["is_secret"] = True
+
+        # Placer la porte de la salle secrète
+        door_x = rx + rw // 2
+        door_y = ry - 1  # La porte sera au-dessus de la salle secrète
+        if 0 <= door_x < self.width and 0 <= door_y < self.height:
+            self.map_data[door_y][door_x]["is_wall"] = True
+            self.secret_door = (door_x, door_y)
+
     def connect_spawn_to_first_room(self, spawn_sas, rooms):
         """
         Connecte le sas de spawn à la première salle générée.
         """
-        # Récupérer le centre du sas (ici le centre est (1,1) ou (2,2))
+        # Récupérer le centre du sas
         spawn_x, spawn_y = spawn_sas[0]
 
         # Récupérer le centre de la première salle générée
@@ -187,37 +232,6 @@ class DungeonGenerator:
         for y in range(self.height):
             self.map_data[y][0]["is_wall"] = True
             self.map_data[y][self.width - 1]["is_wall"] = True
-
-    def add_secret_room(self, rooms):
-        """
-        Ajoute une salle secrète de taille minimale 2x3 et un seul couloir connecté.
-        """
-        secret_room_width = random.randint(2, 3)  # Largeur minimale 2x3
-        secret_room_height = 3  # Hauteur minimale de 3
-        secret_room_x = random.randint(1, self.width - secret_room_width - 1)
-        secret_room_y = random.randint(1, self.height - secret_room_height - 1)
-
-        # Créer la salle secrète (2x3 minimum)
-        self.mark_secret_room((secret_room_x, secret_room_y, secret_room_width, secret_room_height))
-
-        # Relier la salle secrète à une autre pièce (première pièce disponible)
-        self.create_corridor(secret_room_x + secret_room_width // 2, secret_room_y + secret_room_height // 2,
-                              rooms[0][0] + rooms[0][2] // 2, rooms[0][1] + rooms[0][3] // 2)
-
-    def mark_secret_room(self, room):
-        """
-        Marque une salle comme secrète et ferme sa porte.
-        """
-        (rx, ry, rw, rh) = room
-        for y in range(ry, ry + rh):
-            for x in range(rx, rx + rw):
-                self.map_data[y][x]["is_secret"] = True
-
-        door_x = rx + rw // 2
-        door_y = ry - 1
-        if 0 <= door_x < self.width and 0 <= door_y < self.height:
-            self.map_data[door_y][door_x]["is_wall"] = True
-            self.secret_door = (door_x, door_y)
 
     def populate(self, rooms, spawn_sas):
         """

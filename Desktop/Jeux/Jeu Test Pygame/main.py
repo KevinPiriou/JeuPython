@@ -5,7 +5,7 @@ import math
 import time
 from settings import *  # Importer les couleurs définies dans settings.py
 
-from dungeon_generator import DungeonGenerator, find_free_tile
+from dungeon_generator import *
 from entities import Player, Enemy
 from inventory import Inventory, Item
 from projectiles import (
@@ -185,9 +185,9 @@ def main():
                         projectiles.remove(proj)
                         break
 
-        if dungeon.secret_door is not None:
-            all_enemies_dead = all(not e.is_alive() for e in enemies)
-            all_items_collected = (len(items_on_floor) == 0)
+        # Vérification si tous les ennemis sont morts pour ouvrir la porte secrète
+        all_enemies_dead = all(not e.is_alive() for e in enemies)
+        all_items_collected = (len(items_on_floor) == 0)
 
         if all_enemies_dead and all_items_collected:
             (door_x, door_y) = dungeon.secret_door
@@ -234,7 +234,7 @@ def main():
 
         # Affichage du footer avec les informations
         footer_font = pygame.font.SysFont("Arial", 16)
-        footer_text = f"FPS: {fps:.2f} | Tickrate: {fps:.2f} | Ennemies: {len(enemies)} | Items: {len(items_on_floor)} | Pièces: {NUM_ROOMS} | Tuiles: {map_width * map_height}"
+        footer_text = f"FPS: {fps:.2f} | Ennemies: {len(enemies)} | Items: {len(items_on_floor)} | Pièces: {NUM_ROOMS} | Tuiles: {map_width * map_height}"
         footer_surface = footer_font.render(footer_text, True, WHITE)
         screen.blit(footer_surface, (10, SCREEN_HEIGHT - 30))  # Position du footer
 
